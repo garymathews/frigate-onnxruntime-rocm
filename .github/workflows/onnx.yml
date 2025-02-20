@@ -26,7 +26,7 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       - name: Build
         run: |
-          docker buildx build --no-cache --platform linux/amd64 --cache-from type=registry,ref=${{ steps.setup.outputs.cache-name }} --cache-to type=registry,ref=${{ steps.setup.outputs.cache-name }},mode=max -f build/Dockerfile.onnxruntime --output type=local,dest=out/ .
+          docker buildx build --no-cache --platform linux/amd64 --cache-from type=registry,ref=${{ steps.setup.outputs.cache-name }}-onnx --cache-to type=registry,ref=${{ steps.setup.outputs.cache-name }}-onnx,mode=max -f build/Dockerfile.onnxruntime --output type=local,dest=out/ .
           for filename in out/**/*.tar.gz out/**/*.whl; do
             [ -e "$filename" ] || continue
             gh release upload ${{github.event.release.tag_name}} "$filename"
