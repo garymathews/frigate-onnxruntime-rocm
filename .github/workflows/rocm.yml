@@ -12,7 +12,10 @@ jobs:
   build_rocm:
     runs-on: ubuntu-22.04
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Set up QEMU and Buildx
         id: setup
         uses: ./.github/actions/setup
