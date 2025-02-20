@@ -1,6 +1,6 @@
 FROM debian:12 AS rocm
 
-ARG ROCM=6.3.1
+ARG ROCM=6.3.3
 
 # install base deps
 RUN apt-get -qq update \
@@ -17,8 +17,8 @@ RUN apt-get -qq update \
 
 # install migraphx and rocm
 RUN apt update -qq && \
-    wget https://repo.radeon.com/amdgpu-install/$ROCM/ubuntu/jammy/amdgpu-install_6.3.60301-1_all.deb && \
-    apt install -y ./amdgpu-install_6.3.60301-1_all.deb && \
+    wget https://repo.radeon.com/amdgpu-install/$ROCM/ubuntu/jammy/amdgpu-install_6.3.60303-1_all.deb && \
+    apt install -y ./amdgpu-install_6.3.60303-1_all.deb && \
     apt update && \
     apt install -qq -y rocm
 
