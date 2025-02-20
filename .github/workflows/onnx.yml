@@ -11,8 +11,14 @@ permissions:
 jobs:
   release_onnx:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      packages: write
     steps:
-      - uses: actions/checkout@v4
+      - name: Check out code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Set up QEMU and Buildx
         id: setup
         uses: ./.github/actions/setup
