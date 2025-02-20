@@ -5,7 +5,7 @@ inputs:
     required: true
 outputs:
   image-name:
-    value: ghcr.io/${{ steps.lowercaseRepo.outputs.lowercase }}
+    value: ghcr.io/${{ steps.lowercaseRepo.outputs.lowercase }}:latest
   cache-name:
     value: ghcr.io/${{ steps.lowercaseRepo.outputs.lowercase }}:cache
 runs:
