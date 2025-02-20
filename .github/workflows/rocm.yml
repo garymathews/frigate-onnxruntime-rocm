@@ -31,5 +31,6 @@ jobs:
           platforms: linux/amd64
           tags: ${{ steps.setup.outputs.image-name }}
           cache-from: type=registry,ref=${{ steps.setup.outputs.cache-name }}
+          cache-to: type=registry,ref=${{ steps.setup.outputs.cache-name }},mode=max
         env:
           ACTIONS_STEP_DEBUG: true
