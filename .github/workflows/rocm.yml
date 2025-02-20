@@ -25,5 +25,5 @@ jobs:
           file: build/Dockerfile.rocm-builder
           push: true
           platforms: linux/amd64
-          tags: ghcr.io/NickM-27/rocm
+          tags: ghcr.io/nickm-27/rocm
           cache-from: type=registry,ref=rocm
