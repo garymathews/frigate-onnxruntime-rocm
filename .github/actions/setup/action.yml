@@ -42,3 +42,6 @@ runs:
         registry: ghcr.io
         username: ${{ github.actor }}
         password: ${{ inputs.GITHUB_TOKEN }}
+    - id: create-short-sha
+      run: echo "SHORT_SHA=${GITHUB_SHA::7}" >> $GITHUB_OUTPUT
+      shell: bash
