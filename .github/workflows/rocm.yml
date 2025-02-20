@@ -11,6 +11,9 @@ permissions:
 jobs:
   build_rocm:
     runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      packages: write
     steps:
       - name: Check out code
         uses: actions/checkout@v4
