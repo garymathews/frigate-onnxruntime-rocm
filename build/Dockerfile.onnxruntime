@@ -1,12 +1,7 @@
-FROM ghcr.io/nickm-27/frigate-onnxruntime-rocm:latest AS rocm
-
 FROM ubuntu:jammy AS py311-wheels
-
-COPY --from=rocm /opt/rocm-dist /
 ARG DEBIAN_FRONTEND=noninteractive
 
-# create softlink
-RUN ln -s /opt/rocm* /opt/rocm
+ARG ROCM=6.3.3
 
 # install base deps
 RUN apt-get -qq update \
@@ -20,6 +15,13 @@ RUN apt-get -qq update \
     build-essential git \
     software-properties-common \
     && rm -rf /var/lib/apt/lists/*
+
+# install migraphx and rocm
+RUN apt update -qq && \
+    wget https://repo.radeon.com/amdgpu-install/$ROCM/ubuntu/jammy/amdgpu-install_6.3.60303-1_all.deb && \
+    apt install -y ./amdgpu-install_6.3.60303-1_all.deb && \
+    apt update && \
+    apt install -qq -y rocm
 
 # install necessary cmake version
 RUN wget https://github.com/Kitware/CMake/releases/download/v3.26.5/cmake-3.26.5.tar.gz && \
