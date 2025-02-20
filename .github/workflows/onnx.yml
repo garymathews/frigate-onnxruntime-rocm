@@ -1,4 +1,4 @@
-name: On release
+name: ONNX Build
 
 on:
   workflow_dispatch:
