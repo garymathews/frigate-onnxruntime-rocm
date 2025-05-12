@@ -2,6 +2,7 @@ FROM ubuntu:jammy AS py311-wheels
 ARG DEBIAN_FRONTEND=noninteractive
 
 ARG ROCM=6.4.0
+ARG CMAKE=3.28.4
 
 # install base deps
 RUN apt-get -qq update \
@@ -24,9 +25,9 @@ RUN apt update -qq && \
     apt install -qq -y rocm
 
 # install necessary cmake version
-RUN wget https://github.com/Kitware/CMake/releases/download/v3.26.5/cmake-3.26.5.tar.gz && \
-    tar -zxvf cmake-3.26.5.tar.gz && \
-    cd cmake-3.26.5 && \
+RUN wget https://github.com/Kitware/CMake/releases/download/v$CMAKE/cmake-$CMAKE.tar.gz && \
+    tar -zxvf cmake-$CMAKE.tar.gz && \
+    cd cmake-$CMAKE && \
     ./bootstrap && make && make install
 
 RUN add-apt-repository ppa:deadsnakes/ppa \
@@ -41,11 +42,8 @@ RUN wget -q https://bootstrap.pypa.io/get-pip.py -O get-pip.py \
     && python3 get-pip.py "pip"
 
 # clone source for build
-RUN cd / && git clone --depth 1 --branch v1.20.1 https://github.com/microsoft/onnxruntime.git && \
+RUN cd / && git clone --depth 1 --branch v1.21.1 https://github.com/microsoft/onnxruntime.git && \
     cd ~ && git clone https://github.com/ROCm/AMDMIGraphX.git && \
     cd AMDMIGraphX && git config --global --add safe.directory "*" && \
     python3 -m pip config set global.break-system-packages true && \
     tools/build_and_test_onnxrt.sh || true
-
-FROM scratch AS package
-COPY --from=py311-wheels /onnxruntime/build/Linux/Release/dist /
