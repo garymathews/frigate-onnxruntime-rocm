@@ -3,6 +3,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 ARG ROCM=6.4.0
 ARG CMAKE=3.28.4
+ARG ONNXRUNTIME=1.21.1
 
 # install base deps
 RUN apt-get -qq update \
@@ -29,7 +30,6 @@ RUN wget https://github.com/Kitware/CMake/releases/download/v$CMAKE/cmake-$CMAKE
     tar -zxvf cmake-$CMAKE.tar.gz && \
     cd cmake-$CMAKE && \
     ./bootstrap && make && make install
-
 RUN add-apt-repository ppa:deadsnakes/ppa \
     && apt-get -qq update \
     && apt-get -qq install -y python3.11 python3.11-dev python3.11-distutils \
@@ -42,8 +42,8 @@ RUN wget -q https://bootstrap.pypa.io/get-pip.py -O get-pip.py \
     && python3 get-pip.py "pip"
 
 # clone source for build
-RUN cd / && git clone --depth 1 --branch v1.21.1 https://github.com/microsoft/onnxruntime.git && \
-    cd ~ && git clone https://github.com/ROCm/AMDMIGraphX.git && \
-    cd AMDMIGraphX && git config --global --add safe.directory "*" && \
-    python3 -m pip config set global.break-system-packages true && \
-    tools/build_and_test_onnxrt.sh || true
+RUN git clone --single-branch --branch v${ONNXRUNTIME} --recursive https://github.com/Microsoft/onnxruntime onnxruntime &&\
+    /bin/sh onnxruntime/dockerfiles/scripts/install_common_deps.sh &&\
+    cd onnxruntime  && pip install --upgrade pip &&\
+    /bin/sh ./build.sh --allow_running_as_root --cmake_extra_defines ONNXRUNTIME=`cat ./VERSION_NUMBER` --config Release --parallel \
+            --skip_tests --build_wheel --use_rocm --rocm_version=${ROCM} --rocm_home /opt/rocm --use_migraphx
