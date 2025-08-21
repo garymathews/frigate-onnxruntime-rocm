@@ -49,4 +49,4 @@ RUN git clone --single-branch --branch v${ONNXRUNTIME} --recursive https://githu
             --skip_tests --build_wheel --use_rocm --rocm_version=${ROCM} --rocm_home /opt/rocm --use_migraphx
 
 FROM scratch AS export-stage
-COPY --from=builder /workspace/onnxruntime/build/Linux/Release/dist /out
+COPY --from=py311-wheels /workspace/onnxruntime/build/Linux/Release/dist /out
