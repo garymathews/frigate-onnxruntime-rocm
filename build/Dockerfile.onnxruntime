@@ -29,10 +29,10 @@ RUN apt update -qq && \
 # install necessary cmake version (pre-built binary)
 RUN wget https://github.com/Kitware/CMake/releases/download/v$CMAKE/cmake-$CMAKE-Linux-x86_64.tar.gz && \
     tar -xzf cmake-$CMAKE-Linux-x86_64.tar.gz -C /opt && \
-    ln -s /opt/cmake-$CMAKE-Linux-x86_64/bin/cmake /usr/local/bin/cmake && \
-    ln -s /opt/cmake-$CMAKE-Linux-x86_64/bin/ctest /usr/local/bin/ctest && \
-    ln -s /opt/cmake-$CMAKE-Linux-x86_64/bin/ccmake /usr/local/bin/ccmake && \
     rm cmake-$CMAKE-Linux-x86_64.tar.gz
+
+# Set PATH permanently so CMake is available in subsequent RUN commands
+ENV PATH="/opt/cmake-$CMAKE-linux-x86_64/bin:$PATH"
 RUN add-apt-repository ppa:deadsnakes/ppa \
     && apt-get -qq update \
     && apt-get -qq install -y python3.11 python3.11-dev python3.11-distutils \
@@ -46,13 +46,18 @@ RUN wget -q https://bootstrap.pypa.io/get-pip.py -O get-pip.py \
 
 # clone source for build
 RUN git clone --single-branch --branch v${ONNXRUNTIME} --recursive https://github.com/Microsoft/onnxruntime onnxruntime &&\
-    /bin/sh onnxruntime/dockerfiles/scripts/install_common_deps.sh &&\
+    /bin/bash onnxruntime/dockerfiles/scripts/install_common_deps.sh &&\
     cd onnxruntime  && pip install --upgrade pip &&\
     # Add debugging to see what's happening with CMake
     echo "=== Checking ROCm installation ===" && \
     ls -la /opt/rocm && \
     echo "=== Checking MIGraphX installation ===" && \
     ls -la /opt/rocm/lib/cmake/migraphx && \
+    echo "=== Verifying CMake installation ===" && \
+    cmake --version && \
+    which cmake && \
+    echo "=== CMake PATH ===" && \
+    echo $PATH && \
     echo "=== Starting build ===" && \
     echo "=== Build script location ===" && \
     ls -la ./build.sh && \
