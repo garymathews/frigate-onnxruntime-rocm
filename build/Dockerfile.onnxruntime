@@ -1,7 +1,7 @@
 FROM ubuntu:jammy AS py311-wheels
 ARG DEBIAN_FRONTEND=noninteractive
 
-ARG ROCM=6.4.0
+ARG ROCM=6.4.2
 ARG CMAKE=3.28.4
 ARG ONNXRUNTIME=1.21.1
 
@@ -20,7 +20,7 @@ RUN apt-get -qq update \
 
 # install migraphx and rocm
 RUN apt update -qq && \
-    wget -O amdgpu.deb https://repo.radeon.com/amdgpu-install/6.4/ubuntu/jammy/amdgpu-install_6.4.60400-1_all.deb && \
+    wget -O amdgpu.deb https://repo.radeon.com/amdgpu-install/6.4.2/ubuntu/jammy/amdgpu-install_6.4.60402-1_all.deb && \
     apt install -y ./amdgpu.deb && \
     apt update && \
     apt install -qq -y rocm
@@ -47,5 +47,3 @@ RUN git clone --single-branch --branch v${ONNXRUNTIME} --recursive https://githu
     cd onnxruntime  && pip install --upgrade pip &&\
     /bin/sh ./build.sh --allow_running_as_root --cmake_extra_defines ONNXRUNTIME=`cat ./VERSION_NUMBER` --config Release --parallel \
             --skip_tests --build_wheel --use_rocm --rocm_version=${ROCM} --rocm_home /opt/rocm --use_migraphx
-
-RUN mkdir /out && mv build/Linux/Release/dist/*.whl /out
