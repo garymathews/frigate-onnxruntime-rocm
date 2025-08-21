@@ -47,3 +47,6 @@ RUN git clone --single-branch --branch v${ONNXRUNTIME} --recursive https://githu
     cd onnxruntime  && pip install --upgrade pip &&\
     /bin/sh ./build.sh --allow_running_as_root --cmake_extra_defines ONNXRUNTIME=`cat ./VERSION_NUMBER` --config Release --parallel \
             --skip_tests --build_wheel --use_rocm --rocm_version=${ROCM} --rocm_home /opt/rocm --use_migraphx
+
+FROM scratch AS export-stage
+COPY --from=builder /workspace/onnxruntime/build/Linux/Release/dist /out
