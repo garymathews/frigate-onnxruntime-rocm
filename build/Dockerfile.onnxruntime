@@ -25,11 +25,13 @@ RUN apt update -qq && \
     apt update && \
     apt install -qq -y rocm
 
-# install necessary cmake version
-RUN wget https://github.com/Kitware/CMake/releases/download/v$CMAKE/cmake-$CMAKE.tar.gz && \
-    tar -zxvf cmake-$CMAKE.tar.gz && \
-    cd cmake-$CMAKE && \
-    ./bootstrap && make && make install
+# install necessary cmake version (pre-built binary)
+RUN wget https://github.com/Kitware/CMake/releases/download/v$CMAKE/cmake-$CMAKE-Linux-x86_64.tar.gz && \
+    tar -xzf cmake-$CMAKE-Linux-x86_64.tar.gz -C /opt && \
+    ln -s /opt/cmake-$CMAKE-Linux-x86_64/bin/cmake /usr/local/bin/cmake && \
+    ln -s /opt/cmake-$CMAKE-Linux-x86_64/bin/ctest /usr/local/bin/ctest && \
+    ln -s /opt/cmake-$CMAKE-Linux-x86_64/bin/ccmake /usr/local/bin/ccmake && \
+    rm cmake-$CMAKE-Linux-x86_64.tar.gz
 RUN add-apt-repository ppa:deadsnakes/ppa \
     && apt-get -qq update \
     && apt-get -qq install -y python3.11 python3.11-dev python3.11-distutils \
