@@ -3,7 +3,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 
 ARG ROCM=6.4.3
 ARG CMAKE=3.28.4
-ARG ONNXRUNTIME=1.21.1
+ARG ONNXRUNTIME=1.22.0
 
 # install base deps
 RUN apt-get -qq update \
@@ -45,6 +45,12 @@ RUN wget -q https://bootstrap.pypa.io/get-pip.py -O get-pip.py \
 RUN git clone --single-branch --branch v${ONNXRUNTIME} --recursive https://github.com/Microsoft/onnxruntime onnxruntime &&\
     /bin/sh onnxruntime/dockerfiles/scripts/install_common_deps.sh &&\
     cd onnxruntime  && pip install --upgrade pip &&\
+    # Add debugging to see what's happening with CMake
+    echo "=== Checking ROCm installation ===" && \
+    ls -la /opt/rocm && \
+    echo "=== Checking MIGraphX installation ===" && \
+    ls -la /opt/rocm/lib/cmake/migraphx && \
+    echo "=== Starting build ===" && \
     /bin/sh ./build.sh \
         --allow_running_as_root \
         --cmake_extra_defines ONNXRUNTIME=$(cat ./VERSION_NUMBER) \
