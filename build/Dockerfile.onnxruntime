@@ -25,6 +25,8 @@ RUN apt update -qq && \
     apt install -y ./amdgpu.deb && \
     apt update && \
     apt install -qq -y rocm migraphx && \
+    # Install system Eigen to avoid download hash issues
+    apt install -qq -y libeigen3-dev && \
     # Create ROCm version info file for ONNX Runtime compatibility with correct format
     # ONNX Runtime expects format: "MAJOR.MINOR.PATCH-BUILD" (note the dash)
     mkdir -p /opt/rocm/.info && \
@@ -59,7 +61,7 @@ RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
 RUN wget -q https://bootstrap.pypa.io/get-pip.py -O get-pip.py \
     && python3 get-pip.py "pip"
 
-# clone source for build
+# clone and prepare source
 RUN git clone --single-branch --branch v${ONNXRUNTIME} --recursive https://github.com/Microsoft/onnxruntime onnxruntime &&\
     /bin/bash onnxruntime/dockerfiles/scripts/install_common_deps.sh &&\
     cd onnxruntime  && pip install --upgrade pip &&\
@@ -97,17 +99,29 @@ RUN git clone --single-branch --branch v${ONNXRUNTIME} --recursive https://githu
     echo "=== Verifying CMakeLists.txt patch ===" && \
     grep -A5 -B5 "ROCm version" CMakeLists.txt || true && \
     echo "=== Building with ROCm 7.0 and MIGraphX support ===" && \
-    /bin/bash ./build.sh \
-        --allow_running_as_root \
-        --cmake_extra_defines ONNXRUNTIME=$(cat ./VERSION_NUMBER) \
-        --cmake_extra_defines CMAKE_PREFIX_PATH=/opt/rocm \
-        --cmake_extra_defines ROCM_VERSION=${ROCM} \
-        --config Release \
-        --parallel \
-        --skip_tests \
-        --build_wheel \
-        --use_rocm --rocm_version=${ROCM} --rocm_home=/opt/rocm \
-        --use_migraphx --migraphx_home=/opt/rocm
+    # TEMPORARY FIX for ONNX Runtime 1.22.0 Eigen hash mismatch issue
+    # This fixes GitHub issue microsoft/onnxruntime#18286 where GitLab regenerated
+    # the Eigen archive with the same commit but different compression/metadata
+    # TODO: Remove this fix when upgrading to ONNX Runtime 1.23.0+ which includes the proper fix
+    echo "=== Searching for Eigen hash in source files ===" && \
+    find . -type f \( -name "*.cmake" -o -name "*.txt" \) -exec grep -l "5ea4d05e62d7f954a46b3213f9b2535bdd866803" {} \; && \
+    echo "=== Applying Eigen hash fix ===" && \
+    find . -type f \( -name "*.cmake" -o -name "*.txt" \) -exec grep -l "5ea4d05e62d7f954a46b3213f9b2535bdd866803" {} \; | xargs -r sed -i 's/5ea4d05e62d7f954a46b3213f9b2535bdd866803/51982be81bbe52572b54180454df11a3ece9a934/g' && \
+    echo "=== Verifying Eigen hash fix was applied ===" && \
+    find . -type f \( -name "*.cmake" -o -name "*.txt" \) -exec grep -l "51982be81bbe52572b54180454df11a3ece9a934" {} \;
+
+RUN /bin/bash ./build.sh \
+    --allow_running_as_root \
+    --cmake_extra_defines ONNXRUNTIME=$(cat ./VERSION_NUMBER) \
+    --cmake_extra_defines CMAKE_PREFIX_PATH=/opt/rocm \
+    --cmake_extra_defines ROCM_VERSION=${ROCM} \
+    --cmake_extra_defines onnxruntime_USE_SYSTEM_EIGEN=ON \
+    --config Release \
+    --parallel \
+    --skip_tests \
+    --build_wheel \
+    --use_rocm --rocm_version=${ROCM} --rocm_home=/opt/rocm \
+    --use_migraphx --migraphx_home=/opt/rocm
 
 FROM scratch AS export-stage
 COPY --from=py311-wheels /workspace/onnxruntime/build/Linux/Release/dist /out
