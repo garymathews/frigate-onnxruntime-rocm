@@ -1,44 +1,13 @@
-FROM ubuntu:jammy AS py311-wheels
-ARG DEBIAN_FRONTEND=noninteractive
+FROM rocm/dev-ubuntu-22.04:7.0 AS py311-wheels
 
-ARG ROCM=7.0.0
-ARG CMAKE=3.28.4
-ARG ONNXRUNTIME=1.21.0
-
-# install base deps
-RUN apt-get -qq update \
-    && apt-get -qq install -y \
-    apt-transport-https \
-    gnupg \
-    wget \
-    libssl-dev \
-    bash \
-    && apt-get -qq update \
-    && apt-get -qq install -y \
-    build-essential git \
-    software-properties-common \
-    && rm -rf /var/lib/apt/lists/*
-
-# install migraphx and rocm
-RUN apt update -qq && \
-    wget -O amdgpu.deb https://repo.radeon.com/amdgpu-install/7.0/ubuntu/jammy/amdgpu-install_7.0.70000-1_all.deb && \
-    apt install -y ./amdgpu.deb && \
-    apt update && \
-    apt install -qq -y rocm migraphx && \
-    # Install system Eigen to avoid download hash issues
-    apt install -qq -y libeigen3-dev && \
-    # Create ROCm version info file for ONNX Runtime compatibility with correct format
-    # ONNX Runtime expects format: "MAJOR.MINOR.PATCH-BUILD" (note the dash)
-    mkdir -p /opt/rocm/.info && \
-    echo "${ROCM}-70000" > /opt/rocm/.info/version && \
-    # Verify the version file was created correctly
-    echo "=== Verifying ROCm version file creation ===" && \
-    ls -la /opt/rocm/.info/ && \
-    echo "Contents of version file:" && \
-    cat /opt/rocm/.info/version && \
-    echo "=== End verification ==="
+# Install Python 3.11 and build dependencies
+RUN apt-get update && \
+    apt-get install -y python3.11 python3.11-dev python3.11-distutils git wget build-essential && \
+    apt-get install -y rocm-dev rocm-libs migraphx && \
+    rm -rf /var/lib/apt/lists/*
 
 # install necessary cmake version (pre-built binary)
+ARG CMAKE=3.28.4
 RUN wget https://github.com/Kitware/CMake/releases/download/v$CMAKE/cmake-$CMAKE-Linux-x86_64.tar.gz && \
     tar -xzf cmake-$CMAKE-Linux-x86_64.tar.gz -C /opt && \
     rm cmake-$CMAKE-Linux-x86_64.tar.gz
@@ -46,59 +15,25 @@ RUN wget https://github.com/Kitware/CMake/releases/download/v$CMAKE/cmake-$CMAKE
 # Set PATH permanently so CMake is available in subsequent RUN commands
 ENV PATH="/opt/cmake-$CMAKE-linux-x86_64/bin:$PATH"
 
-# Set ROCm environment variables
-ENV ROCM_HOME="/opt/rocm"
-ENV HIP_PLATFORM="amd"
-ENV PATH="/opt/rocm/bin:/opt/rocm/opencl/bin:$PATH"
-RUN add-apt-repository ppa:deadsnakes/ppa \
-    && apt-get -qq update \
-    && apt-get -qq install -y python3.11 python3.11-dev python3.11-distutils \
-    && rm -rf /var/lib/apt/lists/*
+# Install pip for Python 3.11
+RUN wget -q https://bootstrap.pypa.io/get-pip.py -O get-pip.py && \
+    python3.11 get-pip.py "pip" && \
+    rm get-pip.py
 
-# Ensure python3 defaults to python3.11
-RUN update-alternatives --install /usr/bin/python3 python3 /usr/bin/python3.11 1
+# Install build dependencies
+RUN pip install numpy packaging protobuf
 
-RUN wget -q https://bootstrap.pypa.io/get-pip.py -O get-pip.py \
-    && python3 get-pip.py "pip"
+# Create ROCm version file that ONNX Runtime expects
+RUN mkdir -p /opt/rocm/.info && \
+    echo "7.0.0-70000" > /opt/rocm/.info/version
 
-# clone and prepare source
-RUN git clone --single-branch --branch v${ONNXRUNTIME} --recursive https://github.com/Microsoft/onnxruntime onnxruntime &&\
-    /bin/bash onnxruntime/dockerfiles/scripts/install_common_deps.sh &&\
-    cd onnxruntime  && pip install --upgrade pip &&\
-    # Add debugging to see what's happening with CMake and ROCm
-    echo "=== Checking ROCm installation ===" && \
-    ls -la /opt/rocm && \
-    echo "=== Checking ROCm version file ===" && \
-    ls -la /opt/rocm/.info/ && \
-    cat /opt/rocm/.info/version && \
-    echo "=== Checking MIGraphX installation ===" && \
-    ls -la /opt/rocm/lib/cmake/migraphx && \
-    echo "=== Verifying CMake installation ===" && \
-    cmake --version && \
-    which cmake && \
-    echo "=== CMake PATH ===" && \
-    echo $PATH && \
-    echo "=== ROCm environment check ===" && \
-    echo "ROCM_HOME: $ROCM_HOME" && \
-    echo "HIP_PLATFORM: $HIP_PLATFORM" && \
-    echo "=== Starting build ===" && \
-    echo "=== Build script location ===" && \
-    ls -la ./build.sh && \
-    echo "=== Build script permissions ===" && \
-    chmod +x ./build.sh && \
-    echo "=== Starting build with bash ===" && \
-    echo "=== Final ROCm version file check before build ===" && \
-    ls -la /opt/rocm/.info/ && \
-    cat /opt/rocm/.info/version && \
-    echo "Version file content: $(cat /opt/rocm/.info/version)" && \
-    echo "=== Patching CMakeLists.txt for ROCm version detection ===" && \
-    # Find and patch the ROCm version detection in CMakeLists.txt
-    sed -i 's/message(FATAL_ERROR "Cannot determine ROCm version string")/set(ROCM_VERSION_STRING "7.0.0")\n  message(STATUS "Forced ROCm version to 7.0.0")/' CMakeLists.txt && \
-    # Also try to set the version directly before the error check
-    sed -i '/Cannot determine ROCm version string/i set(ROCM_VERSION_STRING "7.0.0")' CMakeLists.txt && \
-    echo "=== Verifying CMakeLists.txt patch ===" && \
-    grep -A5 -B5 "ROCm version" CMakeLists.txt || true && \
-    echo "=== Building with ROCm 7.0 and MIGraphX support ===" && \
+# Clone ONNX Runtime (use a stable version known to work with ROCm)
+WORKDIR /
+RUN git clone --single-branch --branch v1.21.0 --recursive https://github.com/Microsoft/onnxruntime onnxruntime
+
+WORKDIR /onnxruntime
+
+RUN     \
     # TEMPORARY FIX for ONNX Runtime 1.22.0 Eigen hash mismatch issue
     # This fixes GitHub issue microsoft/onnxruntime#18286 where GitLab regenerated
     # the Eigen archive with the same commit but different compression/metadata
@@ -108,24 +43,52 @@ RUN git clone --single-branch --branch v${ONNXRUNTIME} --recursive https://githu
     echo "=== Applying Eigen hash fix ===" && \
     find . -type f \( -name "*.cmake" -o -name "*.txt" \) -exec grep -l "5ea4d05e62d7f954a46b3213f9b2535bdd866803" {} \; | xargs -r sed -i 's/5ea4d05e62d7f954a46b3213f9b2535bdd866803/51982be81bbe52572b54180454df11a3ece9a934/g' && \
     echo "=== Verifying Eigen hash fix was applied ===" && \
-    find . -type f \( -name "*.cmake" -o -name "*.txt" \) -exec grep -l "51982be81bbe52572b54180454df11a3ece9a934" {} \;
+    find . -type f \( -name "*.cmake" -o -name "*.txt" \) -exec grep -l "51982be81bbe52572b54180454df11a3ece9a934" {} \; && \
+    echo "=== Comprehensive Composable Kernel compatibility fixes ===" && \
+    # Fix missing memory header in multiple CK files
+    find . -name "*.hpp" -path "*composable_kernel*" -exec grep -l "std::unique_ptr\|std::make_unique" {} \; | xargs -r sed -i '1i#include <memory>' && \
+    # Fix constexpr warpSize issues
+    find . -name "*.hpp" -path "*composable_kernel*" -exec sed -i 's/__host__ __device__ constexpr.*get_warp_size()/__host__ __device__ inline index_t get_warp_size()/' {} \; && \
+    # Fix explicit specialization storage class errors
+    find . -name "*.hpp" -path "*composable_kernel*" -exec sed -i 's/static constexpr auto GetMfma</constexpr auto GetMfma</' {} \; && \
+    echo "=== CK compatibility fixes applied ==="
 
-# Set working directory for the build
-WORKDIR /onnxruntime
-
-# Run the actual build
-RUN /bin/bash ./build.sh \
+# Configure ONNX Runtime with ROCm (CMake step only)
+RUN python3.11 tools/ci_build/build.py \
+    --build_dir build/Linux \
     --allow_running_as_root \
-    --cmake_extra_defines ONNXRUNTIME=$(cat ./VERSION_NUMBER) \
-    --cmake_extra_defines CMAKE_PREFIX_PATH=/opt/rocm \
-    --cmake_extra_defines ROCM_VERSION=${ROCM} \
-    --cmake_extra_defines onnxruntime_USE_SYSTEM_EIGEN=ON \
     --config Release \
-    --parallel \
+    --skip_tests \
+    --use_rocm \
+    --rocm_home=/opt/rocm \
+    --rocm_version=7.0.0 \
+    --update
+
+# Apply CK compatibility fixes after CMake downloads the dependencies
+RUN echo "=== Applying CK fixes after CMake configure ===" && \
+    # Fix missing memory header in all CK files that use unique_ptr
+    find build/Linux/Release/_deps/composable_kernel-src -name "*.hpp" -exec grep -l "std::unique_ptr\|std::make_unique" {} \; | xargs -r sed -i '1i#include <memory>' && \
+    # Fix constexpr warpSize issues
+    find build/Linux/Release/_deps/composable_kernel-src -name "*.hpp" -exec sed -i 's/__host__ __device__ constexpr.*get_warp_size()/__host__ __device__ inline index_t get_warp_size()/' {} \; && \
+    # Fix explicit specialization storage class errors  
+    find build/Linux/Release/_deps/composable_kernel-src -name "*.hpp" -exec sed -i 's/static constexpr auto GetMfma</constexpr auto GetMfma</' {} \; && \
+    echo "=== CK fixes applied, starting build ==="
+
+# Now run the actual build
+RUN python3.11 tools/ci_build/build.py \
+    --build_dir build/Linux \
+    --allow_running_as_root \
+    --config Release \
     --skip_tests \
     --build_wheel \
-    --use_rocm --rocm_version=${ROCM} --rocm_home=/opt/rocm \
-    --use_migraphx --migraphx_home=/opt/rocm
+    --use_rocm \
+    --rocm_home=/opt/rocm \
+    --rocm_version=7.0.0 \
+    --build
+
+# Create output directory
+RUN mkdir -p /out && \
+    cp build/Linux/Release/dist/*.whl /out/
 
 FROM scratch AS export-stage
-COPY --from=py311-wheels /workspace/onnxruntime/build/Linux/Release/dist /out
+COPY --from=py311-wheels /out /out
