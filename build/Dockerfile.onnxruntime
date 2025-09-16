@@ -25,21 +25,15 @@ RUN apt update -qq && \
     apt install -y ./amdgpu.deb && \
     apt update && \
     apt install -qq -y rocm migraphx && \
-    # Create ROCm version info file for ONNX Runtime compatibility
+    # Create ROCm version info file for ONNX Runtime compatibility with correct format
+    # ONNX Runtime expects format: "MAJOR.MINOR.PATCH-BUILD" (note the dash)
     mkdir -p /opt/rocm/.info && \
-    echo "${ROCM}" > /opt/rocm/.info/version && \
-    # Also create alternative version files that might be expected
-    echo "${ROCM}" > /opt/rocm/VERSION && \
-    echo "${ROCM}" > /opt/rocm/.info/version.txt && \
-    # Create a more detailed version info file
-    echo "ROCm version ${ROCM}" > /opt/rocm/.info/version_info && \
-    # Verify the version files were created correctly
+    echo "${ROCM}-70000" > /opt/rocm/.info/version && \
+    # Verify the version file was created correctly
     echo "=== Verifying ROCm version file creation ===" && \
     ls -la /opt/rocm/.info/ && \
     echo "Contents of version file:" && \
     cat /opt/rocm/.info/version && \
-    echo "Contents of VERSION file:" && \
-    cat /opt/rocm/VERSION && \
     echo "=== End verification ==="
 
 # install necessary cmake version (pre-built binary)
