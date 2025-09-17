@@ -68,8 +68,23 @@ RUN python3.11 tools/ci_build/build.py \
 RUN echo "=== Applying CK fixes after CMake configure ===" && \
     # Fix missing memory header in all CK files that use unique_ptr
     find build/Linux/Release/_deps/composable_kernel-src -name "*.hpp" -exec grep -l "std::unique_ptr\|std::make_unique" {} \; | xargs -r sed -i '1i#include <memory>' && \
-    # Fix constexpr warpSize issues
-    find build/Linux/Release/_deps/composable_kernel-src -name "*.hpp" -exec sed -i 's/__host__ __device__ constexpr.*get_warp_size()/__host__ __device__ inline index_t get_warp_size()/' {} \; && \
+    # Fix all warpSize issues by hardcoding to 64 (standard AMD warp size)
+    # This is necessary because ROCm 7.0 made warpSize non-constexpr but CK expects compile-time constants
+    # Step 1: Fix function calls (but not declarations)
+    find build/Linux/Release/_deps/composable_kernel-src -name "*.hpp" -exec sed -i 's/= get_warp_size();/= 64;/g' {} \; && \
+    find build/Linux/Release/_deps/composable_kernel-src -name "*.hpp" -exec sed -i 's/\* get_warp_size()/\* 64/g' {} \; && \
+    find build/Linux/Release/_deps/composable_kernel-src -name "*.hpp" -exec sed -i 's/get_warp_size() \*/64 \*/g' {} \; && \
+    find build/Linux/Release/_deps/composable_kernel-src -name "*.hpp" -exec sed -i 's/\/ get_warp_size()/\/ 64/g' {} \; && \
+    find build/Linux/Release/_deps/composable_kernel-src -name "*.hpp" -exec sed -i 's/(get_warp_size()/(64/g' {} \; && \
+    # Step 2: Fix variable declarations
+    find build/Linux/Release/_deps/composable_kernel-src -name "*.hpp" -exec sed -i 's/const index_t warpSize = 64;/constexpr index_t warpSize = 64;/' {} \; && \
+    # Step 3: Fix function declarations to be constexpr
+    find build/Linux/Release/_deps/composable_kernel-src -name "*.hpp" -exec sed -i 's/__host__ __device__ constexpr index_t 64/__host__ __device__ constexpr index_t get_warp_size() { return 64; }/' {} \; && \
+    find build/Linux/Release/_deps/composable_kernel-src -name "*.hpp" -exec sed -i 's/CK_TILE_HOST_DEVICE inline index_t 64/CK_TILE_HOST_DEVICE constexpr index_t get_warp_size() { return 64; }/' {} \; && \
+    # Fix the specific get_warp_size function body that still returns ROCm's warpSize
+    find build/Linux/Release/_deps/composable_kernel-src -name "get_id.hpp" -exec sed -i 's/return warpSize;/return 64;/' {} \; && \
+    # Also fix any other function bodies that might still reference warpSize
+    find build/Linux/Release/_deps/composable_kernel-src -name "*.hpp" -exec sed -i 's/return warpSize;/return 64;/' {} \; && \
     # Fix explicit specialization storage class errors  
     find build/Linux/Release/_deps/composable_kernel-src -name "*.hpp" -exec sed -i 's/static constexpr auto GetMfma</constexpr auto GetMfma</' {} \; && \
     echo "=== CK fixes applied, starting build ==="
