@@ -1,10 +1,19 @@
-FROM rocm/dev-ubuntu-22.04:7.0 AS py311-wheels
+FROM rocm/dev-ubuntu-22.04:7.0-complete AS py311-wheels
 
 # Install Python 3.11 and build dependencies
 RUN apt-get update && \
     apt-get install -y python3.11 python3.11-dev python3.11-distutils git wget build-essential && \
     apt-get install -y rocm-dev rocm-libs migraphx && \
     rm -rf /var/lib/apt/lists/*
+
+# Verify MIGraphX installation
+RUN echo "=== Verifying MIGraphX installation ===" && \
+    ls -la /opt/rocm/lib/libmigraphx* && \
+    echo "=== MIGraphX libraries found ==="
+
+# Set environment variables for MIGraphX
+ENV MIGRAPHX_HOME=/opt/rocm
+ENV LD_LIBRARY_PATH=/opt/rocm/lib:$LD_LIBRARY_PATH
 
 # install necessary cmake version (pre-built binary)
 ARG CMAKE=3.28.4
@@ -25,80 +34,30 @@ RUN pip install numpy packaging protobuf
 
 # Create ROCm version file that ONNX Runtime expects
 RUN mkdir -p /opt/rocm/.info && \
-    echo "7.0.0-70000" > /opt/rocm/.info/version
+    echo "7.0.1-70001" > /opt/rocm/.info/version
 
-# Clone ONNX Runtime (use a stable version known to work with ROCm)
+# Clone ONNX Runtime (use version 1.23.0 with MIGraphX support)
 WORKDIR /
-RUN git clone --single-branch --branch v1.21.0 --recursive https://github.com/Microsoft/onnxruntime onnxruntime
+RUN git clone --single-branch --branch v1.23.0 --recursive https://github.com/Microsoft/onnxruntime onnxruntime
 
 WORKDIR /onnxruntime
 
-RUN     \
-    # TEMPORARY FIX for ONNX Runtime 1.22.0 Eigen hash mismatch issue
-    # This fixes GitHub issue microsoft/onnxruntime#18286 where GitLab regenerated
-    # the Eigen archive with the same commit but different compression/metadata
-    # TODO: Remove this fix when upgrading to ONNX Runtime 1.23.0+ which includes the proper fix
-    echo "=== Searching for Eigen hash in source files ===" && \
-    find . -type f \( -name "*.cmake" -o -name "*.txt" \) -exec grep -l "5ea4d05e62d7f954a46b3213f9b2535bdd866803" {} \; && \
-    echo "=== Applying Eigen hash fix ===" && \
-    find . -type f \( -name "*.cmake" -o -name "*.txt" \) -exec grep -l "5ea4d05e62d7f954a46b3213f9b2535bdd866803" {} \; | xargs -r sed -i 's/5ea4d05e62d7f954a46b3213f9b2535bdd866803/51982be81bbe52572b54180454df11a3ece9a934/g' && \
-    echo "=== Verifying Eigen hash fix was applied ===" && \
-    find . -type f \( -name "*.cmake" -o -name "*.txt" \) -exec grep -l "51982be81bbe52572b54180454df11a3ece9a934" {} \; && \
-    echo "=== Comprehensive Composable Kernel compatibility fixes ===" && \
-    # Fix missing memory header in multiple CK files
-    find . -name "*.hpp" -path "*composable_kernel*" -exec grep -l "std::unique_ptr\|std::make_unique" {} \; | xargs -r sed -i '1i#include <memory>' && \
-    # Fix constexpr warpSize issues
-    find . -name "*.hpp" -path "*composable_kernel*" -exec sed -i 's/__host__ __device__ constexpr.*get_warp_size()/__host__ __device__ inline index_t get_warp_size()/' {} \; && \
-    # Fix explicit specialization storage class errors
-    find . -name "*.hpp" -path "*composable_kernel*" -exec sed -i 's/static constexpr auto GetMfma</constexpr auto GetMfma</' {} \; && \
-    echo "=== CK compatibility fixes applied ==="
 
-# Configure ONNX Runtime with ROCm (CMake step only)
-RUN python3.11 tools/ci_build/build.py \
-    --build_dir build/Linux \
-    --allow_running_as_root \
-    --config Release \
-    --skip_tests \
-    --use_rocm \
-    --rocm_home=/opt/rocm \
-    --rocm_version=7.0.0 \
-    --update
 
-# Apply CK compatibility fixes after CMake downloads the dependencies
-RUN echo "=== Applying CK fixes after CMake configure ===" && \
-    # Fix missing memory header in all CK files that use unique_ptr
-    find build/Linux/Release/_deps/composable_kernel-src -name "*.hpp" -exec grep -l "std::unique_ptr\|std::make_unique" {} \; | xargs -r sed -i '1i#include <memory>' && \
-    # Fix all warpSize issues by hardcoding to 64 (standard AMD warp size)
-    # This is necessary because ROCm 7.0 made warpSize non-constexpr but CK expects compile-time constants
-    # Step 1: Fix function calls (but not declarations)
-    find build/Linux/Release/_deps/composable_kernel-src -name "*.hpp" -exec sed -i 's/= get_warp_size();/= 64;/g' {} \; && \
-    find build/Linux/Release/_deps/composable_kernel-src -name "*.hpp" -exec sed -i 's/\* get_warp_size()/\* 64/g' {} \; && \
-    find build/Linux/Release/_deps/composable_kernel-src -name "*.hpp" -exec sed -i 's/get_warp_size() \*/64 \*/g' {} \; && \
-    find build/Linux/Release/_deps/composable_kernel-src -name "*.hpp" -exec sed -i 's/\/ get_warp_size()/\/ 64/g' {} \; && \
-    find build/Linux/Release/_deps/composable_kernel-src -name "*.hpp" -exec sed -i 's/(get_warp_size()/(64/g' {} \; && \
-    # Step 2: Fix variable declarations
-    find build/Linux/Release/_deps/composable_kernel-src -name "*.hpp" -exec sed -i 's/const index_t warpSize = 64;/constexpr index_t warpSize = 64;/' {} \; && \
-    # Step 3: Fix function declarations to be constexpr
-    find build/Linux/Release/_deps/composable_kernel-src -name "*.hpp" -exec sed -i 's/__host__ __device__ constexpr index_t 64/__host__ __device__ constexpr index_t get_warp_size() { return 64; }/' {} \; && \
-    find build/Linux/Release/_deps/composable_kernel-src -name "*.hpp" -exec sed -i 's/CK_TILE_HOST_DEVICE inline index_t 64/CK_TILE_HOST_DEVICE constexpr index_t get_warp_size() { return 64; }/' {} \; && \
-    # Fix the specific get_warp_size function body that still returns ROCm's warpSize
-    find build/Linux/Release/_deps/composable_kernel-src -name "get_id.hpp" -exec sed -i 's/return warpSize;/return 64;/' {} \; && \
-    # Also fix any other function bodies that might still reference warpSize
-    find build/Linux/Release/_deps/composable_kernel-src -name "*.hpp" -exec sed -i 's/return warpSize;/return 64;/' {} \; && \
-    # Fix explicit specialization storage class errors  
-    find build/Linux/Release/_deps/composable_kernel-src -name "*.hpp" -exec sed -i 's/static constexpr auto GetMfma</constexpr auto GetMfma</' {} \; && \
-    echo "=== CK fixes applied, starting build ==="
-
-# Now run the actual build
+# Configure and build ONNX Runtime with MIGraphX (single step with all flags)
 RUN python3.11 tools/ci_build/build.py \
     --build_dir build/Linux \
     --allow_running_as_root \
     --config Release \
     --skip_tests \
     --build_wheel \
-    --use_rocm \
-    --rocm_home=/opt/rocm \
-    --rocm_version=7.0.0 \
+    --use_migraphx \
+    --migraphx_home=/opt/rocm \
+    --compile_no_warning_as_error \
+    --cmake_extra_defines onnxruntime_BUILD_UNIT_TESTS=OFF \
+    --cmake_extra_defines onnxruntime_BUILD_TESTS=OFF \
+    --cmake_extra_defines CMAKE_CXX_FLAGS=-Wno-error=unused-function \
+    --update \
     --build
 
 # Create output directory
