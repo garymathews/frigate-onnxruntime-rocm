@@ -1,4 +1,4 @@
-FROM rocm/dev-ubuntu-22.04:7.0-complete AS py311-wheels
+FROM rocm/dev-ubuntu-22.04:7.0.2-complete AS py311-wheels
 
 # Install Python 3.11 and build dependencies
 RUN apt-get update && \
@@ -36,13 +36,11 @@ RUN pip install numpy packaging protobuf
 RUN mkdir -p /opt/rocm/.info && \
     echo "7.0.1-70001" > /opt/rocm/.info/version
 
-# Clone ONNX Runtime (use version 1.23.0 with MIGraphX support)
+# Clone ONNX Runtime (use version 1.23.1 with MIGraphX support)
 WORKDIR /
-RUN git clone --single-branch --branch v1.23.0 --recursive https://github.com/Microsoft/onnxruntime onnxruntime
+RUN git clone --single-branch --branch v1.23.1 --recursive https://github.com/Microsoft/onnxruntime onnxruntime
 
 WORKDIR /onnxruntime
-
-
 
 # Configure and build ONNX Runtime with MIGraphX (single step with all flags)
 RUN python3.11 tools/ci_build/build.py \
