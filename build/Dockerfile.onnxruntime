@@ -1,4 +1,4 @@
-FROM rocm/dev-ubuntu-22.04:7.0.2-complete AS py311-wheels
+FROM rocm/dev-ubuntu-22.04:7.1-complete AS py311-wheels
 
 # Install Python 3.11 and build dependencies
 RUN apt-get update && \
@@ -34,7 +34,7 @@ RUN pip install numpy packaging protobuf
 
 # Create ROCm version file that ONNX Runtime expects
 RUN mkdir -p /opt/rocm/.info && \
-    echo "7.0.1-70001" > /opt/rocm/.info/version
+    echo "7.1.0-70100" > /opt/rocm/.info/version
 
 # Clone ONNX Runtime (use version 1.23.1 with MIGraphX support)
 WORKDIR /
