@@ -1,42 +1,40 @@
-name: ONNX Build
+name: Build
 
 on:
-  workflow_dispatch:
-  release:
-    types: [published]
+  push:
+    branches: [ "v*" ]
 
 permissions:
   contents: write
 
 jobs:
   release_onnx:
-    runs-on: ubuntu-22.04
+    runs-on: self-hosted
     permissions:
       contents: write
       packages: write
     steps:
-      - name: Check out code
+      - name: Checkout
         uses: actions/checkout@v4
         with:
           persist-credentials: false
-      - name: Set up QEMU and Buildx
-        id: setup
-        uses: ./.github/actions/setup
-        with:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-      - name: Log in to the Container registry
-        uses: docker/login-action@v2
-        with:
-          registry: ghcr.io
-          username: ${{ github.actor }}
-          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
       - name: Build
         run: |
-          docker buildx build --no-cache --platform linux/amd64 --cache-from type=registry,ref=${{ steps.setup.outputs.cache-name }}-onnx --cache-to type=registry,ref=${{ steps.setup.outputs.cache-name }}-onnx,mode=max -f build/Dockerfile.onnxruntime --output type=local,dest=out/ .
-          for filename in out/**/*.tar.gz out/**/*.whl; do
-            [ -e "$filename" ] || continue
-            gh release upload ${{github.event.release.tag_name}} "$filename"
-          done
+          docker buildx build \
+            -f build/Dockerfile.onnxruntime \
+            --output type=local,dest=out/ .
         env:
           GITHUB_TOKEN: ${{ github.TOKEN }}
         shell: bash
+
+      - name: Upload Build Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: onnxruntime-${{ github.ref_name }}
+          path: |
+            out/*.whl
+          retention-days: 3
