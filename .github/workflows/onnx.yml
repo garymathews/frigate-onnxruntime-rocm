@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   release_onnx:
-    runs-on: ubuntu-22.04
+    runs-on: self-hosted #ubuntu-22.04
     permissions:
       contents: write
       packages: write
