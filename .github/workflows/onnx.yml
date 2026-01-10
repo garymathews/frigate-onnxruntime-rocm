@@ -1,10 +1,8 @@
-name: ONNX Runtime Build
+name: Build
 
 on:
   push:
     branches: [ "v*" ]
-  release:
-    types: [published]
 
 permissions:
   contents: write
@@ -23,14 +21,10 @@ jobs:
 
       - name: Set up Docker Buildx
         uses: docker/setup-buildx-action@v3
-        with:
-          driver: docker
 
       - name: Build
         run: |
           docker buildx build \
-            --cache-from type=local,src=/var/lib/docker/buildx-cache \
-            --cache-to type=local,dest=/var/lib/docker/buildx-cache,mode=max \
             -f build/Dockerfile.onnxruntime \
             --output type=local,dest=out/ .
         env:
