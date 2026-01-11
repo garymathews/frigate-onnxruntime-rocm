@@ -7,6 +7,8 @@
 #    1.17.3   | 6.1
 #    1.17.3   | 6.0
 #    1.17.3   | 5.7
+#
+# NOTE: v1.19.2 
 
 ARG ROCM=6.3.4
 ARG ONNXRUNTIME=1.19.2
@@ -70,6 +72,11 @@ RUN sed -i 's/5ea4d05e62d7f954a46b3213f9b2535bdd866803/51982be81bbe52572b5418045
 # Install packaging dependency required by onnxruntime build script
 RUN pip install --break-system-packages packaging
 
+# Patch ONNX Runtime v1.19.X branch
+# Fix "error: ‘model_path_’ was not declared in this scope"
+COPY build/onnx_v1.19.patch /onnxruntime
+RUN echo "$ONNXRUNTIME" | grep -q "^1.19" && git apply onnx_v1.19.patch
+
 # Configure and build ONNX Runtime with MIGraphX (single step with all flags)
 RUN python3 tools/ci_build/build.py \
     --build_dir /rocm-wheels \
@@ -80,7 +87,7 @@ RUN python3 tools/ci_build/build.py \
     --cmake_extra_defines onnxruntime_BUILD_TESTS=OFF \
     --cmake_extra_defines onnxruntime_USE_COMPOSABLE_KERNEL=OFF \
     --cmake_extra_defines CMAKE_HIP_ARCHITECTURES=$HIP_ARCHITECTURES \
-    --cmake_extra_defines CMAKE_CXX_FLAGS="-Wno-error=unused-function -Wno-unknown-warning-option -Wno-pass-failed=transform-warning" \
+    --cmake_extra_defines CMAKE_CXX_FLAGS="-Wno-error=unused-function" \
     --compile_no_warning_as_error \
     --config Release \
     --parallel \
