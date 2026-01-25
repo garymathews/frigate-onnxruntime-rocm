@@ -55,7 +55,7 @@ RUN python3.11 tools/ci_build/build.py \
     --cmake_extra_defines onnxruntime_BUILD_UNIT_TESTS=OFF \
     --cmake_extra_defines onnxruntime_BUILD_TESTS=OFF \
     --cmake_extra_defines CMAKE_CXX_FLAGS=-Wno-error=unused-function \
-    --cmake_extra_defines MAKE_HIP_ARCHITECTURES="gfx908;gfx90a;gfx942;gfx950;gfx1030;gfx1100;gfx1101;gfx1200;gfx1201" \
+    --cmake_extra_defines CMAKE_HIP_ARCHITECTURES="gfx908;gfx90a;gfx942;gfx950;gfx1030;gfx1100;gfx1101;gfx1200;gfx1201" \
     --update \
     --build
 
