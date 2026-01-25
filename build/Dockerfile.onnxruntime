@@ -38,7 +38,7 @@ RUN mkdir -p /opt/rocm/.info && \
 
 # Clone ONNX Runtime (use version 1.23.1 with MIGraphX support)
 WORKDIR /
-RUN git clone --single-branch --branch v1.23.1 --recursive https://github.com/Microsoft/onnxruntime onnxruntime
+RUN git clone --single-branch --branch v1.23.2 --recursive https://github.com/Microsoft/onnxruntime onnxruntime
 
 WORKDIR /onnxruntime
 
