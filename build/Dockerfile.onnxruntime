@@ -79,5 +79,25 @@ RUN python3 tools/ci_build/build.py \
     --migraphx_home /opt/rocm-$ROCM \
     --use_migraphx
 
+# Clear security bit set on onnxruntime_pybind11_state.so inside the wheel
+RUN apt install -y python3-wheel && \
+    wget -O /tmp/patchelf.tar.gz https://github.com/NixOS/patchelf/releases/download/0.18.0/patchelf-0.18.0.tar.gz && \
+    mkdir -p /tmp/patchelf && \
+    tar -xzf /tmp/patchelf.tar.gz -C /tmp/patchelf --strip-components=1 && \
+    cd /tmp/patchelf && \
+    ./configure && \
+    make -j"$(nproc)" && \
+    wheel="$(find /rocm-wheels/Release/dist -maxdepth 1 -name 'onnxruntime*.whl' -print -quit)" && \
+    test -n "$wheel" && \
+    mkdir /tmp/ort-wheel && \
+    python3 -m wheel unpack "$wheel" --dest /tmp/ort-wheel && \
+    wheel_dir="$(find /tmp/ort-wheel -mindepth 1 -maxdepth 1 -type d -print -quit)" && \
+    so="$wheel_dir/onnxruntime/capi/onnxruntime_pybind11_state.so" && \
+    test -f "$so" && \
+    /tmp/patchelf/src/patchelf --clear-execstack "$so" && \
+    rm "$wheel" && \
+    python3 -m wheel pack "$wheel_dir" --dest /rocm-wheels/Release/dist && \
+    rm -rf /tmp/ort-wheel /tmp/patchelf /tmp/patchelf.tar.gz
+
 FROM scratch
 COPY --from=py311-wheels /rocm-wheels/Release/dist /
