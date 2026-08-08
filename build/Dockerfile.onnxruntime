@@ -1,6 +1,7 @@
 # See https://onnxruntime.ai/docs/execution-providers/MIGraphX-ExecutionProvider.html#requirements
 #
 # onnxruntime | ROCm
+#    1.28.0   | 7.2
 #    1.26.0   | 7.2
 #    1.25.1   | 7.2
 #    1.24.4   | 7.2
@@ -15,7 +16,7 @@
 #    1.17.3   | 5.7
 
 ARG ROCM=7.2.4
-ARG ONNXRUNTIME=1.26.0
+ARG ONNXRUNTIME=1.28.0
 ARG CMAKE=3.31.10
 
 FROM debian:12 AS rocm
